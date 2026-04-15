@@ -416,8 +416,13 @@ class Kontoauszug:
 
     def merge_description_rows(self):
         booking_day_idcs = self.df["Bu.Tag"].notna().to_numpy().nonzero()[0]
+
+        if len(booking_day_idcs) == 0:
+            return self.df.iloc[0:0].copy()
+
+        end_idcs = list(booking_day_idcs[1:]) + [len(self.df)]
         records = []
-        for start_idx, end_idx in zip(booking_day_idcs, booking_day_idcs[1:]):
+        for start_idx, end_idx in zip(booking_day_idcs, end_idcs):
             day_df = self.df.iloc[start_idx:end_idx]
             day_record = self._merge_descr_day(day_df)
             records.append(day_record)
@@ -487,7 +492,9 @@ def _resolve_input_paths(inputs: Sequence[str]) -> tuple[list[str], list[str]]:
 
     for item in inputs:
         matches = sorted(glob.glob(item, recursive=True))
-        pdf_matches = [m for m in matches if os.path.isfile(m) and m.lower().endswith(".pdf")]
+        pdf_matches = [
+            m for m in matches if os.path.isfile(m) and m.lower().endswith(".pdf")
+        ]
 
         if pdf_matches:
             resolved.extend(pdf_matches)
@@ -570,7 +577,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(auszug.df)
 
             print(f"Exported: {pdf_path} -> {output_path}")
-        except Exception as exc:  # pragma: no cover - broad by design for CLI resilience
+        except (
+            Exception
+        ) as exc:  # pragma: no cover - broad by design for CLI resilience
             failures += 1
             print(f"Failed: {pdf_path} ({exc})", file=sys.stderr)
             if args.fail_fast:
