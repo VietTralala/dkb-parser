@@ -1,6 +1,7 @@
 import os
 import re
-import tabula  # tabula to extract tabular data
+from typing import Sequence
+from tabula.io import read_pdf  #  to extract tabular data
 import pandas as pd
 
 from pdfminer.high_level import extract_pages
@@ -43,7 +44,12 @@ class Point:
 
 
 class StraightLine:
-    def __init__(self, line: "LTLine" = None, pts=None, linewidth=None) -> None:
+    def __init__(
+        self,
+        line: LTLine | None = None,
+        pts: Sequence[tuple[float, float]] | None = None,
+        linewidth: float | None = None,
+    ) -> None:
 
         if line is not None:
             self.linewidth = line.linewidth
@@ -53,6 +59,11 @@ class StraightLine:
             self._p0 = Point(*line.pts[0])
             self._p1 = Point(*line.pts[1])
         else:
+            if pts is None or len(pts) != 2:
+                raise ValueError("pts must contain exactly 2 points when line is None")
+            if linewidth is None:
+                raise ValueError("linewidth is required when line is None")
+
             self.linewidth = linewidth
             self._p0 = Point(*pts[0])
             self._p1 = Point(*pts[1])
@@ -250,7 +261,7 @@ class Table:
 
     def coord_trafo(self):
         # convert pdfminer coords (0,0 in left lower corner) to tabular coords (0,0 in left upper corner)
-        # return in format fitting for area argument of "tabula.read_pdf" function: top,left,bottom,right == y1,x1,y2,x2
+        # return in format fitting for area argument of "read_pdf" function: top,left,bottom,right == y1,x1,y2,x2
 
         top = self.height - max(self.y1, self.y2)
         bottom = self.height - min(self.y1, self.y2)
@@ -260,15 +271,20 @@ class Table:
         return top, left, bottom, right
 
     def get_df(self):
-        dfs = tabula.read_pdf(
+        result = read_pdf(
             self.path,
             pages=self.page_idx,
             area=self.coord_trafo(),
             silent=True,
             stream=True,
         )
-        assert len(dfs) == 1
-        return dfs[0]
+
+        if isinstance(result, list):
+            assert len(result) == 1
+            return result[0]
+        if isinstance(result, pd.DataFrame):
+            return result
+        raise TypeError(f"Unexpected read_pdf return type: {type(result)!r}")
 
     def drop_page_headline(self):
         # every page as an hline below the DKB logo, we ignore this line:
@@ -359,7 +375,7 @@ class Kontoauszug:
             )
 
     def enrich_df(self):
-        pat = "(\d\d\d\d)_(\d\d\d)"
+        pat = r"(\d\d\d\d)_(\d\d\d)"
         m = re.search(pat, os.path.basename(self.path))
         if m:
             year, number = [int(x) for x in m.groups()]
