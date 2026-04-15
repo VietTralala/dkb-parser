@@ -35,20 +35,20 @@ class Point:
     def __repr__(self):
         return f"Point({self.x}, {self.y})"
 
-    def same_y(self, other: 'Point', tol=1e-7) -> bool:
+    def same_y(self, other: "Point", tol=1e-7) -> bool:
         return abs(self.y - other.y) <= tol
 
-    def same_x(self, other: 'Point', tol=1e-7) -> bool:
+    def same_x(self, other: "Point", tol=1e-7) -> bool:
         return abs(self.x - other.x) <= tol
 
 
 class StraightLine:
-    def __init__(self, line: 'LTLine' = None, pts=None, linewidth=None) -> None:
+    def __init__(self, line: "LTLine" = None, pts=None, linewidth=None) -> None:
 
         if line is not None:
             self.linewidth = line.linewidth
 
-            assert len(line.pts) == 2, f'{line} is not straight line'
+            assert len(line.pts) == 2, f"{line} is not straight line"
 
             self._p0 = Point(*line.pts[0])
             self._p1 = Point(*line.pts[1])
@@ -64,16 +64,16 @@ class StraightLine:
 
     def get_orientation(self):
         if self._p0.same_y(self._p1):
-            return Orientation['H']
+            return Orientation["H"]
         elif self._p0.same_x(self._p1):
-            return Orientation['V']
+            return Orientation["V"]
         else:
-            return Orientation['UNDEFINED']
+            return Orientation["UNDEFINED"]
 
     def _set_tblr(self):
         # pdfminer coords(0, 0 in left lower corner)
         # tblr ==> top bottom left right ==> ymax, ymin, xmin, xmax
-        if self.orientation == Orientation['H']:
+        if self.orientation == Orientation["H"]:
             self._top = self._p0.y
             self._bottom = self._top
             self._left = min(self._p0.x, self._p1.x)
@@ -105,34 +105,34 @@ class StraightLine:
         return self._right
 
     def get_const_position(self):
-        if self.orientation == Orientation['H']:
+        if self.orientation == Orientation["H"]:
             return self.top
-        elif self.orientation == Orientation['V']:
+        elif self.orientation == Orientation["V"]:
             return self.left
         else:
             return None
 
     def to_interval(self):
         # ignoring const position only return changing coords
-        if self.orientation == Orientation['H']:
+        if self.orientation == Orientation["H"]:
             return [self.left, self.right]
-        elif self.orientation == Orientation['V']:
+        elif self.orientation == Orientation["V"]:
             return [self.bottom, self.top]
         else:
             return []
 
     def length(self):
-        if self.orientation == Orientation['H']:
+        if self.orientation == Orientation["H"]:
             return self.right - self.left
-        elif self.orientation == Orientation['V']:
+        elif self.orientation == Orientation["V"]:
             return self.top - self.bottom
         else:
             return None
 
     def __str__(self):
-        if self.orientation == Orientation['H']:
+        if self.orientation == Orientation["H"]:
             return f"{self.orientation} Straightline from x={self.left} to x={self.right} at y={self.top}"
-        elif self.orientation == Orientation['V']:
+        elif self.orientation == Orientation["V"]:
             return f"{self.orientation} Straightline from y={self.bottom} to y={self.top} at x={self.right}"
         else:
             return self.__repr__()
@@ -153,13 +153,16 @@ class Orientation(Enum):
 class StraightLineCollection:
     def __init__(self, lines: list[StraightLine], tol=2) -> None:
         self._lines = lines
-        assert len(lines) > 0, 'Cant have empty collection'
+        assert len(lines) > 0, "Cant have empty collection"
         self.orientation = lines[0].orientation
 
-        assert all(lines.orientation ==
-                   self.orientation for lines in self._lines), 'Lines dont have matching orientations. Cant merge'
-        assert self.orientation in [Orientation['H'], Orientation['V']
-                                    ], f"Cant merge lines with orientation {self.orientation}"
+        assert all(
+            lines.orientation == self.orientation for lines in self._lines
+        ), "Lines dont have matching orientations. Cant merge"
+        assert self.orientation in [
+            Orientation["H"],
+            Orientation["V"],
+        ], f"Cant merge lines with orientation {self.orientation}"
 
         self.tol = tol  # tolerance threshold for merging
 
@@ -174,10 +177,10 @@ class StraightLineCollection:
         return unique_pos
 
     def merge(self):
-        if self.orientation == Orientation['H']:  # --
+        if self.orientation == Orientation["H"]:  # --
             self._lines = sorted(self._lines, key=lambda l: l.left)
             return
-        elif self.orientation == Orientation['V']:  # |
+        elif self.orientation == Orientation["V"]:  # |
             # for left and right vertical lines
             merged_group = dict()
             for const_pos, lines in self.groups.items():
@@ -187,7 +190,11 @@ class StraightLineCollection:
                 # do merge of lines:
                 intervals = [lines[0].to_interval()]
                 for l in lines[1:]:
-                    if intervals[-1][0] - self.tol <= l.bottom <= intervals[-1][1] + self.tol:
+                    if (
+                        intervals[-1][0] - self.tol
+                        <= l.bottom
+                        <= intervals[-1][1] + self.tol
+                    ):
                         # if l.bottom is in former interval with tolerance around than merge end points
                         intervals[-1][1] = max(l.top, intervals[-1][-1])
                     else:
@@ -195,8 +202,10 @@ class StraightLineCollection:
 
                 merged_lines = []
                 for intvs in intervals:
-                    line = StraightLine(pts=[(const_pos, intvs[0]), (const_pos, intvs[1])],
-                                        linewidth=lines[0].linewidth)
+                    line = StraightLine(
+                        pts=[(const_pos, intvs[0]), (const_pos, intvs[1])],
+                        linewidth=lines[0].linewidth,
+                    )
                     merged_lines.append(line)
                 merged_group[const_pos] = merged_lines
 
@@ -204,13 +213,13 @@ class StraightLineCollection:
             return
 
         else:
-            raise RuntimeError('unsupported line orientation for merging')
+            raise RuntimeError("unsupported line orientation for merging")
 
     def __len__(self) -> int:
         return sum(len(v) for k, v in self.groups.items())
 
     def __str__(self) -> str:
-        output = ''
+        output = ""
         for k, v in self.groups.items():
             output += f"{k}:\n"
             for line in v:
@@ -251,10 +260,13 @@ class Table:
         return top, left, bottom, right
 
     def get_df(self):
-        dfs = tabula.read_pdf(self.path,
-                              pages=self.page_idx,
-                              area=self.coord_trafo(),
-                              silent=True, stream=True)
+        dfs = tabula.read_pdf(
+            self.path,
+            pages=self.page_idx,
+            area=self.coord_trafo(),
+            silent=True,
+            stream=True,
+        )
         assert len(dfs) == 1
         return dfs[0]
 
@@ -277,7 +289,9 @@ class Table:
         else:
             # delete shorter one by default
             lenghts = sorted([l.length() for l in lines[delete_key]])
-            lines[delete_key] = [l for l in lines[delete_key] if l.length() != lenghts[len_idx]]
+            lines[delete_key] = [
+                l for l in lines[delete_key] if l.length() != lenghts[len_idx]
+            ]
         return
 
     def _cleanup_lines(self):
@@ -328,18 +342,21 @@ class Kontoauszug:
 
         # self.export(output_fmt='xlsx')
 
-    def export(self, output_fmt='xlsx'):
-        if output_fmt == 'xlsx':
-            self.df.to_excel(self.path.replace('pdf', 'xlsx'))
-        elif output_fmt == 'csv':
-            self.df.to_csv(self.path.replace('pdf', 'csv'))
-        elif output_fmt == 'json':
-            self.df.to_json(self.path.replace('pdf', 'json'))
+    def export(self, output_fmt="xlsx"):
+        if output_fmt == "xlsx":
+            self.df.to_excel(self.path.replace("pdf", "xlsx"))
+        elif output_fmt == "csv":
+            self.df.to_csv(self.path.replace("pdf", "csv"))
+        elif output_fmt == "json":
+            self.df.to_json(self.path.replace("pdf", "json"))
         else:
             raise NotImplementedError(
-                (f"Output format {output_fmt} is not supported yet. "
-                 "Look ad pandas.DataFrame.to_* functions to implement "
-                 "your own export function"))
+                (
+                    f"Output format {output_fmt} is not supported yet. "
+                    "Look ad pandas.DataFrame.to_* functions to implement "
+                    "your own export function"
+                )
+            )
 
     def enrich_df(self):
         pat = "(\d\d\d\d)_(\d\d\d)"
@@ -349,11 +366,11 @@ class Kontoauszug:
             # for number 1 and 13 we potentially have to concatenate next/previous year
 
             def append_year(row):
-                attrs = ['Bu.Tag', 'Wert']
+                attrs = ["Bu.Tag", "Wert"]
                 for a in attrs:
-                    if number == 1 and row[a].rstrip('.').split('.')[-1] == '12':
+                    if number == 1 and row[a].rstrip(".").split(".")[-1] == "12":
                         row[a] = datetime.strptime(f"{row[a]}{year-1}", "%d.%m.%Y")
-                    elif number == 13 and row[a].rstrip('.').split('.')[-1] == '01':
+                    elif number == 13 and row[a].rstrip(".").split(".")[-1] == "01":
                         row[a] = datetime.strptime(f"{row[a]}{year+1}", "%d.%m.%Y")
                     else:
                         row[a] = datetime.strptime(f"{row[a]}{year}", "%d.%m.%Y")
@@ -362,12 +379,14 @@ class Kontoauszug:
             return self.df.apply(append_year, axis=1)
 
         else:
-            raise RuntimeError(f'Could not infere year and number from Kontoauszug filename {self.path}')
+            raise RuntimeError(
+                f"Could not infere year and number from Kontoauszug filename {self.path}"
+            )
 
         return self.df
 
     def merge_description_rows(self):
-        booking_day_idcs = self.df['Bu.Tag'].notna().to_numpy().nonzero()[0]
+        booking_day_idcs = self.df["Bu.Tag"].notna().to_numpy().nonzero()[0]
         records = []
         for start_idx, end_idx in zip(booking_day_idcs, booking_day_idcs[1:]):
             day_df = self.df.iloc[start_idx:end_idx]
@@ -378,9 +397,9 @@ class Kontoauszug:
 
     def _merge_descr_day(self, day_df):
         rec = dict()
-        for k, v in day_df.iteritems():
-            if k == 'Wir haben für Sie gebucht':  # description col
-                rec[k] = ' '.join(v.tolist())
+        for k, v in day_df.items():
+            if k == "Wir haben für Sie gebucht":  # description col
+                rec[k] = " ".join(v.tolist())
             else:
                 rec[k] = v.iloc[0]
         return rec
@@ -395,12 +414,12 @@ class Kontoauszug:
             vlines = []  # |
             for elem in page_layout:
                 if isinstance(elem, LTLine):
-                    assert len(elem.pts) == 2, 'invalid line'
+                    assert len(elem.pts) == 2, "invalid line"
 
                     l = StraightLine(elem)
-                    if l.orientation == Orientation['H']:
+                    if l.orientation == Orientation["H"]:
                         hlines.append(l)
-                    elif l.orientation == Orientation['V']:
+                    elif l.orientation == Orientation["V"]:
                         vlines.append(l)
             if len(hlines) > 0 and len(vlines) > 0:
                 # ipdb.set_trace()
@@ -412,8 +431,14 @@ class Kontoauszug:
                 # print('vlines:')
                 # print(vlines)
                 try:
-                    tab = Table(path=self.path, hlines=hlines, vlines=vlines, page_idx=page_idx + 1,
-                                height=page_layout.height, width=page_layout.width)
+                    tab = Table(
+                        path=self.path,
+                        hlines=hlines,
+                        vlines=vlines,
+                        page_idx=page_idx + 1,
+                        height=page_layout.height,
+                        width=page_layout.width,
+                    )
                     tables.append(tab)
                 except AssertionError:
                     pass
@@ -421,7 +446,7 @@ class Kontoauszug:
         return tables
 
     def __str__(self) -> str:
-        res = ''
+        res = ""
         res += f"Kontoauszug of shape {self.df.shape}:\n"
         res += str(self.df)
         return res
