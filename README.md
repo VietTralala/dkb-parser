@@ -47,6 +47,7 @@ with tqdm_joblib(desc="read pdf files", total=len(files)) as progress_bar:
 ```
 
 ## Features
+- privacy-friendly local parsing: no credential input and no data upload
 - single python script 
 - parse monthly pdf files to panda dataframes
 - CSV/xlsx export (other panda export functions are easy to extend) 
