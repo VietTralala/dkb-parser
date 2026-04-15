@@ -1,5 +1,8 @@
+import argparse
+import glob
 import os
 import re
+import sys
 from typing import Sequence
 from tabula.io import read_pdf  #  to extract tabular data
 import pandas as pd
@@ -358,14 +361,13 @@ class Kontoauszug:
 
         # self.export(output_fmt='xlsx')
 
-    def export(self, output_fmt="xlsx"):
-        if output_fmt == "xlsx":
-            self.df.to_excel(self.path.replace("pdf", "xlsx"))
-        elif output_fmt == "csv":
-            self.df.to_csv(self.path.replace("pdf", "csv"))
-        elif output_fmt == "json":
-            self.df.to_json(self.path.replace("pdf", "json"))
-        else:
+    def export(self, output_fmt="xlsx", output_dir=None):
+        exporters = {
+            "xlsx": self.df.to_excel,
+            "csv": self.df.to_csv,
+            "json": self.df.to_json,
+        }
+        if output_fmt not in exporters:
             raise NotImplementedError(
                 (
                     f"Output format {output_fmt} is not supported yet. "
@@ -373,6 +375,17 @@ class Kontoauszug:
                     "your own export function"
                 )
             )
+
+        if output_dir is None:
+            base_path, _ = os.path.splitext(self.path)
+            output_path = f"{base_path}.{output_fmt}"
+        else:
+            os.makedirs(output_dir, exist_ok=True)
+            base_name, _ = os.path.splitext(os.path.basename(self.path))
+            output_path = os.path.join(output_dir, f"{base_name}.{output_fmt}")
+
+        exporters[output_fmt](output_path)
+        return output_path
 
     def enrich_df(self):
         pat = r"(\d\d\d\d)_(\d\d\d)"
@@ -466,3 +479,105 @@ class Kontoauszug:
         res += f"Kontoauszug of shape {self.df.shape}:\n"
         res += str(self.df)
         return res
+
+
+def _resolve_input_paths(inputs: Sequence[str]) -> tuple[list[str], list[str]]:
+    resolved = []
+    missing = []
+
+    for item in inputs:
+        matches = sorted(glob.glob(item, recursive=True))
+        pdf_matches = [m for m in matches if os.path.isfile(m) and m.lower().endswith(".pdf")]
+
+        if pdf_matches:
+            resolved.extend(pdf_matches)
+            continue
+
+        if os.path.isfile(item) and item.lower().endswith(".pdf"):
+            resolved.append(item)
+        else:
+            missing.append(item)
+
+    deduped = []
+    seen = set()
+    for path in resolved:
+        norm_path = os.path.abspath(path)
+        if norm_path not in seen:
+            seen.add(norm_path)
+            deduped.append(path)
+
+    return deduped, missing
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Parse DKB statement PDFs and export them as xlsx/csv/json."
+    )
+    parser.add_argument(
+        "inputs",
+        nargs="+",
+        help="PDF file paths or glob patterns (for example: 'statements/*.pdf')",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        dest="output_fmt",
+        default="xlsx",
+        choices=["xlsx", "csv", "json"],
+        help="Export format (default: xlsx)",
+    )
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        help="Optional target directory for export files",
+    )
+    parser.add_argument(
+        "--print",
+        dest="print_df",
+        action="store_true",
+        help="Print parsed DataFrame(s) to stdout",
+    )
+    parser.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="Stop on first failed input instead of continuing",
+    )
+
+    args = parser.parse_args(argv)
+
+    pdf_paths, missing = _resolve_input_paths(args.inputs)
+    for missing_item in missing:
+        print(
+            f"Warning: input did not match a PDF file or pattern: {missing_item}",
+            file=sys.stderr,
+        )
+
+    if not pdf_paths:
+        print("No PDF inputs found.", file=sys.stderr)
+        return 2
+
+    failures = 0
+    for pdf_path in pdf_paths:
+        try:
+            auszug = Kontoauszug(pdf_path)
+            output_path = auszug.export(
+                output_fmt=args.output_fmt,
+                output_dir=args.output_dir,
+            )
+
+            if args.print_df:
+                print(f"\n=== {pdf_path} ===")
+                print(auszug.df)
+
+            print(f"Exported: {pdf_path} -> {output_path}")
+        except Exception as exc:  # pragma: no cover - broad by design for CLI resilience
+            failures += 1
+            print(f"Failed: {pdf_path} ({exc})", file=sys.stderr)
+            if args.fail_fast:
+                return 1
+
+    return 1 if failures else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

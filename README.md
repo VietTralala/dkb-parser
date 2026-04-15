@@ -5,6 +5,19 @@ A simple python script to parse the monthly bank statement pdf (Kontoauszug) of 
 ## Usage
 You can find an example pdf-file in the repo as well as the notebook `example.ipynb` showing the below example in action.
 
+You can also use the command line interface after `uv sync`:
+
+```bash
+# Single file (exports next to the input file)
+uv run python read_pdf_table.py "Kontoauszug_1061733174_Nr_2020_011_per_2020_11_02 (copy).pdf"
+
+# Multiple files with glob pattern and CSV export
+uv run python read_pdf_table.py "statements/*.pdf" --format csv
+
+# Write all outputs into a dedicated folder
+uv run python read_pdf_table.py "statements/*.pdf" --format json --output-dir exports
+```
+
 The input-pdf looks as follows:
 
 ![input-pdf](./.media/kontoauszug_example.jpg)  
@@ -42,17 +55,55 @@ with tqdm_joblib(desc="read pdf files", total=len(files)) as progress_bar:
 
 There are some alternatives out there but they require either a complex selenium setup or the availability of csv exports of the bank statements or other dependencies with did not reliably work for me. Also I don't want to enter my bank login details into some github script and also don't want to manually download the csv file for each month. I guess I could have downloaded a csv for my complete banking history each time and divide it into months via python but that wouldn't be as fun as this little project. Since I always download the bank statements as pdfs anyways I needed a script to convert those pdfs into a more accessible format i.e. csv, xlsx... This script prodives just that and not more by only using simple text based methods so no fancy OCR ect. 
 
-## Installation
-
-For now you can just copy the script and place it somewhere. I am planning to add a pip-installable version of this script as well.
-
 ## Requirements
 
-* python3
-* [tabula-py 2.6.0](https://pypi.org/project/tabula-py/)
-* [tabula-java](https://github.com/tabulapdf/tabula-java)
-* [pdfminer.six](https://pypi.org/project/pdfminer.six/)
-* [pandas](https://pypi.org/project/pandas/)
+- Python 3.10+
+- [uv](https://docs.astral.sh/uv/)
+- Java Runtime / JDK 21+ (required by [tabula-py](https://pypi.org/project/tabula-py/))
+
+### macOS setup (recommended)
+
+Install Java (Temurin 21 LTS) via Homebrew:
+
+```bash
+brew install --cask temurin@21
+export JAVA_HOME=$(/usr/libexec/java_home -v 21)
+export PATH="$JAVA_HOME/bin:$PATH"
+java -version
+```
+
+You should see Java 21 in the output.
+
+## Installation (uv)
+
+This repository now includes a `pyproject.toml`, so you can run it with [uv](https://docs.astral.sh/uv/) directly:
+
+```bash
+uv sync
+```
+
+Then run code with the managed environment:
+
+```bash
+uv run python
+```
+
+Or run the notebook with dependencies from `pyproject.toml`:
+
+```bash
+uv run jupyter notebook
+```
+
+If you want the notebook/batch-processing extras, install the `dev` optional dependencies:
+
+```bash
+uv sync --extra dev
+```
+
+## Notes on `jpype`
+
+`tabula-py` can run in subprocess mode without `jpype`.
+If `jpype` installation fails on your platform, parsing can still work as long as Java is installed and detected.
 
 ## Performance
 
@@ -62,11 +113,6 @@ The script needs around 1 second for a moderate pdf (6 pages) on one cpu and thu
 
 I use `pdfminer.six` to access all elements in the pdf in XML format. In those pdf elements we can find lines matching the table border. However long lines sometimes appear as splitted elements, so we merge them in a meaningful way and can obtain the table coordinates in the pdf which we pass to tabula which performs the actual parsing into a tabular structure. On the resulting pandas datafram we perform some additional clean up to have a nice result.
 
-
-## TODO
-
-* add proper package structure to make it installable with setup.py, requirements.txt ect...
-* add code for command line usage
 
 ## Alternatives:
 
